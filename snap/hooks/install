@@ -1,0 +1,8 @@
+#!/bin/bash -ex
+
+mkdir -p $SNAP_DATA/usr/lib/unifi/run
+mkdir -p $SNAP_DATA/usr/lib/unifi/logs
+mkdir -p $SNAP_DATA/usr/lib/unifi/data
+
+# needs to be owned by snap_daemon
+chown -R snap_daemon $SNAP_DATA/usr/lib/unifi/data

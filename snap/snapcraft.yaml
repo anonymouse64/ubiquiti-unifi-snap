@@ -1,0 +1,82 @@
+name: ubiquiti-unifi
+base: core18
+version: "0.1" # just for humans, typically '1.2+git' or '1.3.2'
+summary: Single-line elevator pitch for your amazing snap # 79 char long summary
+description: |
+  This is my-snap's description. You have a paragraph or two to tell the
+  most important story about your snap. Keep it under 100 words though,
+  we live in tweetspace and your description wants to look good in the snap
+  store.
+
+system-usernames:
+  snap_daemon: shared
+
+package-repositories:
+  - type: apt
+    url: https://www.ui.com/downloads/unifi/debian
+    formats: [deb]
+    components:
+      - ubiquiti
+    suites: ["stable"]
+    # suites:
+    #   - stable
+    #   - stable/ubiquiti
+    key-id: 06E85760C0A52C50
+    # src: echo 'deb https://www.ui.com/downloads/unifi/debian stable ubiquiti
+
+# sudo apt-key adv --keyserver keyserver.ubuntu.com --recv 06E85760C0A52C50
+grade: stable
+confinement: devmode
+
+layout:
+  /usr/lib/unifi/run:
+    symlink: $SNAP_DATA/usr/lib/unifi/run
+  /usr/lib/unifi/data:
+    symlink: $SNAP_DATA/usr/lib/unifi/data
+  /usr/lib/unifi/logs:
+    symlink: $SNAP_DATA/usr/lib/unifi/logs
+  # /etc/init.d/unifi:
+  #   symlink: $SNAP/etc/init.d/unifi
+  # /usr/lib/unifi/run:
+  #   bind: $SNAP_DATA/usr/lib/unifi/run
+
+apps:
+  unifi-daemon:
+    # taken from the systemd service unit
+    daemon: forking
+    command: usr/lib/unifi/bin/unifi.init start
+    stop-command: usr/lib/unifi/bin/unifi.init stop
+    reload-command: usr/lib/unifi/bin/unifi.init reload
+    start-timeout: 5m
+    stop-mode: sigterm
+    environment:
+      UNIFI_USER: snap_daemon
+      UNIFI_DATA_DIR: ${SNAP_DATA}/usr/lib/unifi/data
+      LOGDIR: ${SNAP_DATA}/usr/log/unifi
+      RUNDIR: /run/snap.${SNAP_INSTANCE_NAME}
+      JAVA_HOME: "${SNAP}/usr/lib/jvm/java-8-openjdk-${SNAP_ARCH}/jre"
+      PATH: $JAVA_HOME/bin:$JAVA_HOME/jre/bin:$PATH
+      CLASSPATH: $SNAP/usr/share/java/commons-daemon.jar:${BASEDIR}/lib/ace.jar
+
+parts:
+  unifi:
+    # source: https://dl.ui.com/unifi/5.14.23/unifi_sysvinit_all.deb
+    source: .
+    stage-packages:
+      - unifi
+      # - jsvc
+      - setpriv
+    plugin: dump
+    override-build: |
+      snapcraftctl build
+
+      # patch unifi.init to use better paths and fix various other issues with
+      # their default script
+      sed -i \
+        -e 's@PATH=/bin:/usr/bin:/sbin:/usr/sbin@# PATH set deleted by snap packaging@' \
+        -e 's@BASEDIR="/usr/lib/unifi"@BASEDIR="$SNAP/usr/lib/unifi" # prefixed with $SNAP_DATA by snap packaging@' \
+        -e 's@dir_symlink_fix ${RUNDIR} ${RUNLINK} ${UNIFI_USER} ${UNIFI_GROUP} ${DIR_MODE} ${UNIFI_CORE_ENABLED}@ # dir_symlink_fix for ${RUNDIR} and ${RUNLINK} disabled by snap packaging@' \
+        -e 's@/usr/share/java/commons-daemon.jar:${BASEDIR}/lib/ace.jar@$SNAP/usr/share/java/commons-daemon.jar:$SNAP/${BASEDIR}/lib/ace.jar@' \
+        $SNAPCRAFT_PART_INSTALL/usr/lib/unifi/bin/unifi.init
+
+      # -e 's@-cp /usr/share/java/commons-daemon.jar:${BASEDIR}/lib/ace.jar \@-cp /usr/share/java/commons-daemon.jar:$SNAP/${BASEDIR}/lib/ace.jar \@' \
